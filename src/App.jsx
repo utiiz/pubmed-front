@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import './App.css'
-import { Button, Input } from '@material-tailwind/react'
+import { Button, Input, IconButton } from '@material-tailwind/react'
 
 function App() {
   const [url, setUrl] = useState("");
-  const [loading, setLoading] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const generateRandomString = (length = 6) => Math.random().toString(20).substring(2, length)
   const generatePubmedFile = () => {
     setLoading(true);
-    console.log(url);
+    setError(false);
     const urlBase = "https://wrybmteixi.execute-api.eu-west-3.amazonaws.com/pubmed";
     const options = {
       method: "POST",
@@ -15,24 +17,27 @@ function App() {
       body: JSON.stringify({ url })
     };
     fetch(urlBase, options)
-      .then((response) => response.json())
-      .then((data) => {
-        console.log(data);
-        let rows = [["Titre", "Auteur", "Date", "Type", "Link"]];
-        data.forEach(el => {
-          const link = "https://pubmed.ncbi.nlm.nih.gov/" + el["PMID"]
-          rows.push([
-            el["TI"],
-            el["AU"] || el["CN"],
-            el["DP"],
-            el["PT"],
-            link
-          ]);
-        });
-        const csvContent = "data:text/csv;charset=utf-8," 
-          + rows.map(e => e.join(";")).join("\n");
-        const encodedUri = encodeURI(csvContent);
-        window.open(encodedUri);
+      .then((response) => {
+        if (response.ok)
+          return response.json()
+            .then((data) => {
+              try {
+                fetch(data)
+                .then((response) => response.blob())
+                .then((blob) => {
+                    let a = document.createElement('a');
+                    a.href = window.URL.createObjectURL(blob);
+                    let random_name = generateRandomString(15);
+                    a.download = random_name.toUpperCase() + ".csv";
+                    document.body.appendChild(a); // we need to append the element to the dom -> otherwise it will not work in firefox
+                    a.click();    
+                    a.remove();  //afterwards we remove the element again
+                  })
+              } catch(e) {
+                console.log(e);
+                setError(true);
+              }
+            })
       })
       .finally(() => setLoading(false));
   };
@@ -41,8 +46,9 @@ function App() {
     <>
       <div className="card">
         <div className="w-96 flex flex-col space-y-4">
-          <Input label='URL' color='indigo' value={url} onChange={(event) => setUrl(event.target.value)}/>
-          <Button color='indigo' disabled={loading} fullWidth ripple={false} onClick={() => generatePubmedFile()}>Générer le fichier</Button>
+          <Input label='PubMed URL' color='teal' error={error} value={url} onChange={(event) => setUrl(event.target.value)}/>
+          <button className="border-none p-3 disabled:bg-teal-100 bg-teal-500 hover:bg-teal-600 disabled:hover:shadow-md shadow-md hover:shadow-lg text-xs text-white font-semibold uppercase" disabled={!url || loading} onClick={() => generatePubmedFile()}>Générer le fichier</button>
+
         </div>
       </div>
     </>
